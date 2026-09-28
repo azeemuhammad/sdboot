@@ -24,7 +24,7 @@ from rag_engine import create_rag, SDBootRAG
 # ------------------------------------------------------------------
 API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
 
-DATA_PATH = Path(__file__).parent / "daniyal_azeem_chatbot_knowledge.jsonl"
+DATA_PATH = Path(__file__).parent / "sdboot_combined_knowledge.jsonl"
 rag: SDBootRAG = create_rag(DATA_PATH, api_key=API_KEY)
 
 SYSTEM_INTRO = """

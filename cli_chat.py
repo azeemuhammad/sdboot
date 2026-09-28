@@ -8,7 +8,7 @@ from pathlib import Path
 from rag_engine import create_rag
 
 def main():
-    data = Path(__file__).parent / "daniyal_azeem_chatbot_knowledge.jsonl"
+    data = Path(__file__).parent / "sdboot_combined_knowledge.jsonl"
     print("Loading sdboot RAG engine…")
     rag = create_rag(data)
     print("Ready. Type your question (or 'quit' / 'exit' to leave, 'clear' to reset history).\n")

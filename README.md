@@ -1,144 +1,48 @@
 # sdboot
 
-**Personal RAG Chatbot for Muhammad Daniyal Azeem**
+**One personal RAG chatbot** with knowledge about:
 
-sdboot answers questions about Daniyal using his own curated knowledge base  
-(profile, education, skills, projects, 120+ Q&A pairs).
+1. **Muhammad Daniyal Azeem** — AI & Flutter developer, Lahore, BS AI @ UMT  
+2. **Muhammad Sher Khan** — Matta, Swat  
 
-It implements a complete **Retrieval-Augmented Generation** pipeline:
+## Architecture (RAG diagram)
 
 ```
 Documents → Encode (TF-IDF) → FAISS Vector DB
-                                   ↑
 User Query → Encode → Similarity Search → top-k docs
-                                   ↓
-              Prompt + Context → Google Gemini LLM → Final response
+Retrieved docs + Query → Prompt → LLM (Gemini) → Final response
 ```
 
-Conversation history is maintained. The bot has a clear personal identity: **sdboot**.
+## Files
 
----
+| File | Purpose |
+|------|---------|
+| `sdboot_combined_knowledge.jsonl` | Merged knowledge (Daniyal + Sher Khan) |
+| `daniyal_azeem_chatbot_knowledge.jsonl` | Original Daniyal-only dataset |
+| `rag_engine.py` | RAG pipeline + Gemini |
+| `app_streamlit.py` | **Deploy this on Streamlit Cloud** |
+| `app.py` | Gradio UI |
+| `cli_chat.py` | Terminal chat |
+| `requirements.txt` | Dependencies |
+| `PROJECT_REPORT.md` | Report |
 
-## Features (meets all assignment requirements)
-
-| Requirement | Status |
-|-------------|--------|
-| Personal / custom dataset (not Wikipedia) | ✅ 140 chunks from Daniyal’s own data |
-| Document loading & preprocessing | ✅ |
-| Embedding generation | ✅ TF-IDF |
-| Vector database | ✅ FAISS |
-| Retrieval mechanism | ✅ Cosine + score boosting |
-| LLM-based response generation | ✅ Google Gemini |
-| Proper prompt engineering | ✅ System + context + history |
-| History maintenance | ✅ Last 6 turns |
-| Working chatbot interface | ✅ Gradio web UI + CLI |
-| Personal identity / name | ✅ **sdboot** |
-| Deployment | ✅ Hugging Face Spaces ready |
-
----
-
-## Project structure
-
-```
-sdboot/
-├── daniyal_azeem_chatbot_knowledge.jsonl   # personal knowledge base
-├── Daniyal_Azeem_Chatbot_Knowledge_Base.pdf
-├── rag_engine.py                           # full RAG + Gemini
-├── app.py                                  # Gradio web UI
-├── cli_chat.py                             # terminal chat
-├── requirements.txt
-├── README.md
-└── PROJECT_REPORT.md
-```
-
----
-
-## Quick start (local)
+## Local run
 
 ```bash
-cd sdboot
 pip install -r requirements.txt
-
-# Set your Gemini API key (required for LLM generation)
-export GEMINI_API_KEY="AQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Web interface
-python app.py
-# → open http://localhost:7860
-
-# Or terminal
-python cli_chat.py
+export GEMINI_API_KEY="your-gemini-key"
+streamlit run app_streamlit.py
 ```
 
-Without the key the bot still works in retrieval-only mode.
+## Deploy (GitHub + Streamlit.app)
 
----
-
-## Deployment (Mandatory) — Hugging Face Spaces
-
-This is the recommended free deployment platform for Gradio apps.
-
-### Steps
-
-1. Create a free account at [huggingface.co](https://huggingface.co)
-2. Click **New Space**
-   - Space name: `sdboot` (or any name)
-   - SDK: **Gradio**
-   - Visibility: Public
-3. Upload **all files** from this folder (or push via git)
-4. Go to **Settings → Variables and secrets**
-   - Add a **Secret**:
-     - Name: `GEMINI_API_KEY`
-     - Value: your Gemini API key (`AQ.…`)
-5. The Space will build automatically.
-6. Your live link will be:
+1. Create a **public** GitHub repository `sdboot` and upload all files in this folder.
+2. Go to https://share.streamlit.io and sign in with GitHub.
+3. **New app** → select your `sdboot` repo → Main file path: `app_streamlit.py`
+4. Secrets:
+   ```toml
+   GEMINI_API_KEY = "AQ.Ab8RN6IpbVJPeMr6FNDf77PqHkRVQz94kn7O7N1n38XhyfyPKA"
    ```
-   https://huggingface.co/spaces/<your-username>/sdboot
-   ```
+5. Deploy → copy the public `*.streamlit.app` URL and submit it.
 
-Alternative platforms (also work):
-- Streamlit Cloud (if you convert the UI)
-- Render
-- Railway
-
-Local-only is **not** sufficient for the assignment — you must provide a public working link.
-
----
-
-## Dataset
-
-- 140 personal documents covering:
-  - Profile & identity
-  - Education (UMT, Matric, FSc)
-  - Skills (Flutter, Dart, Firebase, Python, ML, SQL, C++)
-  - Projects: Clinic Portal, Wallpaper App, Student Performance Prediction, ETL, Database Design, LUMINA
-  - Contact & internship availability
-  - 120+ ready Q&A pairs
-
-All data is original / personal. No generic Wikipedia dumps.
-
----
-
-## How the RAG works
-
-1. **Load** – JSONL → list of documents  
-2. **Embed** – TF-IDF (1–2 grams, L2-normalized)  
-3. **Index** – FAISS IndexFlatIP (cosine similarity)  
-4. **Retrieve** – top-k + category / project score boosting  
-5. **Generate** – System prompt + retrieved context + history → Gemini  
-6. **History** – sliding window of recent turns  
-
-If the Gemini call fails, a high-quality retrieval-only synthesizer is used as fallback.
-
----
-
-## Identity
-
-The bot introduces itself as **sdboot**, Daniyal’s personal RAG assistant.  
-It never invents facts outside the knowledge base.
-
----
-
-## License / usage
-
-Personal academic project. Free to use for learning and demonstration.
+Local-only is not enough; the public Streamlit.app link is required for submission.

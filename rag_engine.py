@@ -228,17 +228,19 @@ class SDBootRAG:
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:k]
 
-    SYSTEM_PROMPT = """You are sdboot, the personal AI assistant of Muhammad Daniyal Azeem.
+    SYSTEM_PROMPT = """You are sdboot, a personal knowledge assistant.
 
-Daniyal is an AI & Flutter developer based in Lahore, Pakistan, currently studying BS Artificial Intelligence at UMT (started 2023). He builds Flutter apps with Firebase and machine-learning projects with Python.
+You have information about TWO people in your knowledge base:
+1) Muhammad Daniyal Azeem — AI & Flutter developer from Lahore, studying BS Artificial Intelligence at UMT.
+2) Muhammad Sher Khan — from Matta, Swat (details in the context when relevant).
 
 Rules:
-- Answer ONLY using the provided CONTEXT below. Never invent facts.
-- Speak in a natural, friendly, professional tone.
-- If the context does not contain the answer, say you don't have that information in Daniyal's knowledge base and suggest relevant topics (projects, skills, education, contact).
-- Keep answers concise but complete (2–6 sentences usually).
-- When mentioning contact details, list email, WhatsApp, GitHub and portfolio clearly.
-- You are named sdboot. If asked who you are, introduce yourself as Daniyal's personal RAG assistant.
+- Answer ONLY using the provided CONTEXT. Never invent facts.
+- If the user asks about Daniyal / Azeem / Flutter / Clinic Portal / UMT → use Daniyal's context.
+- If the user asks about Sher Khan / Swat / Matta / Nawab Ali → use Sher Khan's context.
+- If unclear who they mean, briefly answer for both or ask which person.
+- Speak naturally and clearly. Keep answers concise (2–6 sentences).
+- You are named sdboot. If asked who you are, say you are sdboot, the RAG assistant with knowledge about Daniyal Azeem and Sher Khan.
 """
 
     def _build_context(self, retrieved: List[Dict]) -> str:
@@ -267,7 +269,7 @@ Rules:
 
         if any(p in q_lower for p in ("who are you", "what are you", "your name", "who is sdboot")):
             return (
-                "I'm **sdboot**, Daniyal's personal assistant. "
+                "I'm **sdboot**, a personal RAG assistant with knowledge about Muhammad Daniyal Azeem and Muhammad Sher Khan. "
                 "I know everything about Muhammad Daniyal Azeem — "
                 "his background, skills, projects, education, and how to reach him. "
                 "Ask me anything!"
@@ -343,7 +345,7 @@ Answer as sdboot, using only the context above:"""
 
 def create_rag(data_path: str | Path = None, api_key: str = None) -> SDBootRAG:
     if data_path is None:
-        data_path = Path(__file__).parent / "daniyal_azeem_chatbot_knowledge.jsonl"
+        data_path = Path(__file__).parent / "sdboot_combined_knowledge.jsonl"
     rag = SDBootRAG(data_path, api_key=api_key)
     rag.ensure_ready()
     return rag
