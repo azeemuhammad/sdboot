@@ -1,63 +1,39 @@
 # sdboot — RAG Chatbot Project Report
 
-**Student:** Muhammad Daniyal Azeem  
 **Chatbot name:** sdboot  
-**Task:** Design & implement a RAG-based personal chatbot
+**Live deployment:** https://sdboot.streamlit.app/
 
----
+## Objective
 
-## 1. Objective
+Design and implement a RAG-based personal chatbot using custom personal data (not generic Wikipedia). The system retrieves relevant chunks and generates answers with an LLM, has a named identity, maintains history, and is publicly deployed.
 
-Build a working Retrieval-Augmented Generation (RAG) system that answers questions about the developer using only his own personal dataset. The bot must have a clear identity (sdboot), maintain conversation history, use an LLM for generation, and be publicly deployed.
+## Dataset
 
-## 2. Dataset
+Personal/custom data only:
+- Muhammad Daniyal Azeem: profile, education (UMT), skills, projects, contact, 120+ Q&A
+- Muhammad Sher Khan: profile, education, hometown (Matta, Swat)
+- Combined file: `sdboot_combined_knowledge.jsonl` (155 documents)
 
-- Source: `daniyal_azeem_chatbot_knowledge.jsonl` (140 documents)
-- Content: profile, personal details, education, skills, six main projects, contact info, and 120+ curated Q&A pairs
-- Format: one JSON object per line (`id`, `text`, `category`, optional `project_name`)
-- Preprocessing: whitespace normalization, empty-line filtering
-- No external generic corpora were used.
+## RAG implementation
 
-## 3. RAG Pipeline Implementation
+1. Document loading & preprocessing (JSONL)
+2. Embedding generation (TF-IDF)
+3. Vector database (FAISS)
+4. Retrieval (similarity search + boosting)
+5. Prompt engineering (system prompt + context + history)
+6. LLM generation (Google Gemini) with offline fallback
+7. History maintenance
+8. Interface: Streamlit (`app_streamlit.py`), Gradio, CLI
+9. Identity: **sdboot** (answers in third person about the people)
 
-| Step | Implementation |
-|------|----------------|
-| Document loading | JSONL reader → list of dicts |
-| Embedding | TF-IDF (1–2 grams, L2-normalized) |
-| Vector database | FAISS `IndexFlatIP` (cosine) |
-| Retrieval | Top-k + category/project score boosting |
-| LLM generation | Google Gemini (prompt + retrieved context + history) |
-| Prompt engineering | System prompt defining identity + strict grounding rules |
-| History | Sliding window of last 6 turns |
-| Interface | Gradio web UI + CLI |
-| Fallback | High-quality retrieval-only synthesizer if LLM unavailable |
+## Deployment
 
-## 4. Chatbot Identity
+- Platform: **Streamlit Community Cloud**
+- Source: public GitHub repository
+- Main file: `app_streamlit.py`
+- Secret: `GEMINI_API_KEY`
+- Public URL: **https://sdboot.streamlit.app/**
 
-- Name: **sdboot**
-- Role: Personal knowledge assistant for Muhammad Daniyal Azeem
-- Tone: Helpful, direct, grounded in the knowledge base
+## Conclusion
 
-## 5. Deployment
-
-The system is ready for **Hugging Face Spaces** (Gradio SDK).
-
-1. Create a Space → SDK = Gradio  
-2. Upload all project files  
-3. Add secret `GEMINI_API_KEY` = your Google Gemini key  
-4. Live URL: `https://huggingface.co/spaces/<username>/sdboot`
-
-Local runnable mode is also provided (`python app.py`).
-
-## 6. How to run locally
-
-```bash
-cd sdboot
-pip install -r requirements.txt
-export GEMINI_API_KEY="your-key"
-python app.py
-```
-
-## 7. Conclusion
-
-sdboot fully satisfies the assignment requirements: personal dataset, complete RAG pipeline (load → embed → FAISS → retrieve → prompt → LLM), named identity, conversation history, working interface, and deployment instructions for a public platform.
+sdboot meets all requirements: personal dataset, full RAG pipeline, LLM generation, named identity, history, working interface, and a functional public deployment link.

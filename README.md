@@ -1,48 +1,160 @@
-# sdboot
+# sdboot — Personal RAG Chatbot
 
-**One personal RAG chatbot** with knowledge about:
+**Live demo:** https://sdboot.streamlit.app/
 
-1. **Muhammad Daniyal Azeem** — AI & Flutter developer, Lahore, BS AI @ UMT  
+**sdboot** is a Retrieval-Augmented Generation (RAG) chatbot with personal knowledge about:
+
+1. **Muhammad Daniyal Azeem** — AI & Flutter developer, Lahore, BS Artificial Intelligence @ UMT  
 2. **Muhammad Sher Khan** — Matta, Swat  
 
-## Architecture (RAG diagram)
+It answers only from the personal dataset (not generic Wikipedia data).
+
+---
+
+## 1. How it works (RAG pipeline)
+
+Matches the standard RAG architecture:
 
 ```
-Documents → Encode (TF-IDF) → FAISS Vector DB
-User Query → Encode → Similarity Search → top-k docs
-Retrieved docs + Query → Prompt → LLM (Gemini) → Final response
+1. Additional documents (JSONL knowledge base)
+2. Encode → Embedding model (TF-IDF)
+3. Index → Vector database (FAISS)
+4. User Query → Encode
+5. Similarity search → retrieve similar documents
+6. Similar docs + Query → Prompt
+7. LLM (Google Gemini) → Final response
 ```
 
-## Files
+| Component | Implementation |
+|-----------|----------------|
+| Document loading & preprocessing | JSONL load, clean whitespace, structured chunks |
+| Embedding generation | TF-IDF (1–2 grams, L2-normalized) |
+| Vector database | FAISS `IndexFlatIP` (cosine similarity) |
+| Retrieval | Top-k + category/project score boosting |
+| Prompt engineering | System prompt (identity + third-person rules) + context + history |
+| LLM generation | Google Gemini API; offline fallback if key fails |
+| History | Last 6 conversation turns |
+| Interface | Streamlit web app (`app_streamlit.py`) + Gradio + CLI |
+| Identity | Named chatbot **sdboot** |
 
-| File | Purpose |
+The bot always speaks **as sdboot** (assistant), in **third person** about Daniyal or Sher Khan (never pretends to be them).
+
+---
+
+## 2. Dataset
+
+| File | Content |
 |------|---------|
-| `sdboot_combined_knowledge.jsonl` | Merged knowledge (Daniyal + Sher Khan) |
-| `daniyal_azeem_chatbot_knowledge.jsonl` | Original Daniyal-only dataset |
-| `rag_engine.py` | RAG pipeline + Gemini |
-| `app_streamlit.py` | **Deploy this on Streamlit Cloud** |
-| `app.py` | Gradio UI |
-| `cli_chat.py` | Terminal chat |
-| `requirements.txt` | Dependencies |
-| `PROJECT_REPORT.md` | Report |
+| `sdboot_combined_knowledge.jsonl` | **Main dataset** — Daniyal (140) + Sher Khan (15) = 155 chunks |
+| `daniyal_azeem_chatbot_knowledge.jsonl` | Original Daniyal-only knowledge |
+| `Daniyal_Azeem_Chatbot_Knowledge_Base.pdf` | Human-readable Daniyal knowledge |
 
-## Local run
+Data includes: profile, education, skills, projects (Clinic Portal, Wallpaper App, ML, ETL, LUMINA), contact, and Q&A pairs. All personal/custom — not generic dumps.
+
+---
+
+## 3. Project structure
+
+```
+sdboot/
+├── app_streamlit.py              # Streamlit UI (deployed app)
+├── app.py                        # Gradio UI
+├── cli_chat.py                   # Terminal chat
+├── rag_engine.py                 # Full RAG + Gemini
+├── sdboot_combined_knowledge.jsonl
+├── daniyal_azeem_chatbot_knowledge.jsonl
+├── Daniyal_Azeem_Chatbot_Knowledge_Base.pdf
+├── requirements.txt
+├── README.md                     # This file
+└── PROJECT_REPORT.md
+```
+
+---
+
+## 4. Requirements
+
+```
+faiss-cpu>=1.7.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+httpx>=0.27.0
+streamlit>=1.28.0
+gradio>=4.0.0
+```
+
+Install:
 
 ```bash
 pip install -r requirements.txt
-export GEMINI_API_KEY="your-gemini-key"
+```
+
+---
+
+## 5. Local run (testing)
+
+```bash
+cd sdboot
+pip install -r requirements.txt
+export GEMINI_API_KEY="your-gemini-api-key"
 streamlit run app_streamlit.py
 ```
 
-## Deploy (GitHub + Streamlit.app)
+Open http://localhost:8501  
 
-1. Create a **public** GitHub repository `sdboot` and upload all files in this folder.
-2. Go to https://share.streamlit.io and sign in with GitHub.
-3. **New app** → select your `sdboot` repo → Main file path: `app_streamlit.py`
-4. Secrets:
-   ```toml
-   GEMINI_API_KEY = "AQ.Ab8RN6IpbVJPeMr6FNDf77PqHkRVQz94kn7O7N1n38XhyfyPKA"
-   ```
-5. Deploy → copy the public `*.streamlit.app` URL and submit it.
+CLI:
 
-Local-only is not enough; the public Streamlit.app link is required for submission.
+```bash
+python cli_chat.py
+```
+
+---
+
+## 6. Deployment instructions (GitHub + Streamlit.app)
+
+**Live link:** https://sdboot.streamlit.app/
+
+### Steps that were followed
+
+1. **Prepare project**  
+   Complete source code, `requirements.txt`, README, dataset JSONL, and report.
+
+2. **Push to GitHub**  
+   - Create a **public** repository named `sdboot`.  
+   - Upload all files from this folder (especially `app_streamlit.py`, `rag_engine.py`, `sdboot_combined_knowledge.jsonl`, `requirements.txt`).
+
+3. **Deploy on Streamlit Community Cloud**  
+   - Go to https://share.streamlit.io and sign in with GitHub.  
+   - Click **New app**.  
+   - Select repository: `sdboot`, branch: `main`.  
+   - **Main file path:** `app_streamlit.py`  
+   - **Secrets** (Advanced settings):
+     ```toml
+     GEMINI_API_KEY = "your-gemini-api-key"
+     ```
+   - Click **Deploy**.
+
+4. **Public URL**  
+   After build succeeds, the app is available at:  
+   **https://sdboot.streamlit.app/**
+
+Local-only run is not sufficient for submission; the public Streamlit.app link is required.
+
+---
+
+## 7. Example queries
+
+- Who are you?  
+- Who is Daniyal? / What is Clinic Portal? / What skills does Daniyal have?  
+- Who is Sher Khan? / Where is Sher Khan from?  
+- How can I contact Daniyal?  
+
+---
+
+## 8. Submission checklist
+
+- [x] Complete source code  
+- [x] `requirements.txt`  
+- [x] README (this file) with deployment instructions  
+- [x] Dataset files (`sdboot_combined_knowledge.jsonl`, etc.)  
+- [x] Deployment instructions (GitHub + Streamlit)  
+- [x] Working public link: https://sdboot.streamlit.app/  

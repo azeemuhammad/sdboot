@@ -92,7 +92,7 @@ class SDBootRAG:
         self,
         data_path: str | Path,
         top_k: int = 5,
-        min_score: float = 0.02,
+        min_score: float = 0.08,
         api_key: str = None,
     ):
         self.data_path = Path(data_path)
@@ -229,21 +229,18 @@ class SDBootRAG:
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:k]
 
-    SYSTEM_PROMPT = """You are sdboot, a helpful personal knowledge assistant (NOT the person being asked about).
+    SYSTEM_PROMPT = """You are sdboot, a helpful knowledge assistant.
 
-You know about two people from the CONTEXT:
-1) Muhammad Daniyal Azeem — AI & Flutter developer, Lahore, BS AI at UMT.
-2) Muhammad Sher Khan — from Matta, Swat (father: Nawab Ali Khan, etc.).
+You ONLY know about two people from the CONTEXT:
+1) Muhammad Daniyal Azeem
+2) Muhammad Sher Khan
 
-CRITICAL RULES:
-- Always speak as sdboot (the assistant). NEVER pretend to be Daniyal or Sher Khan.
-- Talk ABOUT them in third person: "He is…", "Muhammad Sher Khan was born…", "Daniyal built…"
-- Do NOT use "My name is", "I am", "I was born" when answering about them — rewrite as third person.
-- Use ONLY the provided CONTEXT. Never invent facts.
-- If the question is about Sher Khan / Swat / Matta / Nawab → use Sher Khan facts.
-- If about Daniyal / Flutter / Clinic / UMT / Lahore projects → use Daniyal facts.
-- Keep answers clear and natural (2–5 sentences).
-- If asked who YOU are: you are sdboot, the RAG assistant for both profiles.
+STRICT RULES:
+- Answer ONLY the question asked, using ONLY the CONTEXT.
+- Speak as sdboot in third person (He is..., His name is...). Never say "I am Daniyal" or "My name is".
+- If asked about anyone else (Ali, Maaz, etc.) or anything missing from CONTEXT, say you do not have that information and that you only know Daniyal Azeem and Sher Khan.
+- Do NOT give Daniyal's full intro unless the user asked about Daniyal.
+- Keep answers short and on-topic (2-5 sentences).
 """
 
     def _build_context(self, retrieved: List[Dict]) -> str:
@@ -309,6 +306,45 @@ CRITICAL RULES:
         return out
 
 
+
+    def _unknown_person_reply(self, query: str, retrieved: list):
+        """Reject questions about people/topics not in the knowledge base."""
+        q = query.lower().strip()
+
+        m = re.search(
+            r"(?:who\s+is|who's|tell\s+me\s+about|what\s+about)\s+([a-zA-Z][a-zA-Z\s\.]{0,40}?)\??\s*$",
+            q,
+        )
+        known_tokens = {
+            "daniyal", "azeem", "muhammad", "sher", "khan", "sdboot",
+            "you", "yourself", "he", "she", "him", "her", "this", "that",
+            "the", "bot", "clinic", "portal", "flutter", "umt", "wallpaper",
+            "lumina", "etl", "internship", "contact", "email", "skills",
+            "education", "project", "projects",
+        }
+        if m:
+            name = m.group(1).strip()
+            tokens = [t for t in re.split(r"[\s\.]+", name) if t]
+            if tokens and not any(t in known_tokens for t in tokens):
+                if retrieved and retrieved[0].get("score", 0) >= 0.4:
+                    top = retrieved[0].get("text", "").lower()
+                    if any(t in top for t in tokens if len(t) > 2):
+                        return None
+                display = " ".join(w.capitalize() for w in tokens)
+                return (
+                    f"I don't have any information about **{display}**. "
+                    f"I only know about **Muhammad Daniyal Azeem** and **Muhammad Sher Khan**."
+                )
+
+        # Weak retrieval → no answer
+        if not retrieved or retrieved[0].get("score", 0) < 0.12:
+            return (
+                "I don't have that information in my knowledge base. "
+                "I can only answer about **Muhammad Daniyal Azeem** or **Muhammad Sher Khan**."
+            )
+        return None
+
+
     def synthesize_fallback(self, query: str, retrieved: List[Dict]) -> str:
         """Offline fallback when Gemini is unavailable."""
         q_lower = query.lower().strip()
@@ -324,6 +360,11 @@ CRITICAL RULES:
                 "Hey! I'm sdboot. I know about Muhammad Daniyal Azeem and Muhammad Sher Khan. "
                 "Who would you like to ask about?"
             )
+        # Unknown person (e.g. Who is Ali?)
+        unknown = self._unknown_person_reply(query, retrieved)
+        if unknown:
+            return unknown
+
         if not retrieved:
             return (
                 "I don't have enough information for that. "
@@ -363,6 +404,9 @@ CRITICAL RULES:
 
     def generate(self, query: str, retrieved: List[Dict]) -> str:
         """LLM generation with proper prompt; falls back if needed."""
+        unknown = self._unknown_person_reply(query, retrieved)
+        if unknown:
+            return unknown
         context = self._build_context(retrieved)
         history = self._history_text()
 
