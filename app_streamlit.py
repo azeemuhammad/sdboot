@@ -13,7 +13,7 @@ from rag_engine import create_rag
 # Page config
 # ------------------------------------------------------------------
 st.set_page_config(
-    page_title="sdboot | Daniyal's RAG Chatbot",
+    page_title="sdboot | Daniyal's and Sher khan's RAG Chatbot",
     page_icon="🤖",
     layout="centered",
 )
