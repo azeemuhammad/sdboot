@@ -18,6 +18,7 @@ Falls back to retrieval-only synthesis if no API key is set.
 from __future__ import annotations
 
 import json
+import re
 import os
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
@@ -228,19 +229,21 @@ class SDBootRAG:
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:k]
 
-    SYSTEM_PROMPT = """You are sdboot, a personal knowledge assistant.
+    SYSTEM_PROMPT = """You are sdboot, a helpful personal knowledge assistant (NOT the person being asked about).
 
-You have information about TWO people in your knowledge base:
-1) Muhammad Daniyal Azeem — AI & Flutter developer from Lahore, studying BS Artificial Intelligence at UMT.
-2) Muhammad Sher Khan — from Matta, Swat (details in the context when relevant).
+You know about two people from the CONTEXT:
+1) Muhammad Daniyal Azeem — AI & Flutter developer, Lahore, BS AI at UMT.
+2) Muhammad Sher Khan — from Matta, Swat (father: Nawab Ali Khan, etc.).
 
-Rules:
-- Answer ONLY using the provided CONTEXT. Never invent facts.
-- If the user asks about Daniyal / Azeem / Flutter / Clinic Portal / UMT → use Daniyal's context.
-- If the user asks about Sher Khan / Swat / Matta / Nawab Ali → use Sher Khan's context.
-- If unclear who they mean, briefly answer for both or ask which person.
-- Speak naturally and clearly. Keep answers concise (2–6 sentences).
-- You are named sdboot. If asked who you are, say you are sdboot, the RAG assistant with knowledge about Daniyal Azeem and Sher Khan.
+CRITICAL RULES:
+- Always speak as sdboot (the assistant). NEVER pretend to be Daniyal or Sher Khan.
+- Talk ABOUT them in third person: "He is…", "Muhammad Sher Khan was born…", "Daniyal built…"
+- Do NOT use "My name is", "I am", "I was born" when answering about them — rewrite as third person.
+- Use ONLY the provided CONTEXT. Never invent facts.
+- If the question is about Sher Khan / Swat / Matta / Nawab → use Sher Khan facts.
+- If about Daniyal / Flutter / Clinic / UMT / Lahore projects → use Daniyal facts.
+- Keep answers clear and natural (2–5 sentences).
+- If asked who YOU are: you are sdboot, the RAG assistant for both profiles.
 """
 
     def _build_context(self, retrieved: List[Dict]) -> str:
@@ -263,46 +266,100 @@ Rules:
             lines.append(f"{role}: {turn['content']}")
         return "\n".join(lines)
 
+
+
+    def _to_third_person(self, answer: str, person: str = None) -> str:
+        """Rewrite first-person answers so sdboot speaks ABOUT the person, not AS them."""
+        if not answer:
+            return answer
+        a = answer.strip()
+        lower = a.lower()
+
+        # Ordered replacements (longer phrases first)
+        replacements = [
+            (r"My full name is", "His full name is"),
+            (r"My name is", "His name is"),
+            (r"I am the son of", "He is the son of"),
+            (r"I was born", "He was born"),
+            (r"I completed", "He completed"),
+            (r"I passed", "He passed"),
+            (r"I studied", "He studied"),
+            (r"I attended", "He attended"),
+            (r"I live", "He lives"),
+            (r"I work", "He works"),
+            (r"I built", "He built"),
+            (r"I have", "He has"),
+            (r"I've", "He has"),
+            (r"I'm", "He is"),
+            (r"I am", "He is"),
+            (r"My father", "His father"),
+            (r"my father", "his father"),
+            (r"my Matriculation", "his Matriculation"),
+            (r"my FSc", "his FSc"),
+            (r"my school", "his school"),
+            (r"my college", "his college"),
+            (r"my hometown", "his hometown"),
+            (r"my", "his"),
+            (r"My", "His"),
+        ]
+        out = a
+        for pat, rep in replacements:
+            out = re.sub(pat, rep, out)
+        out = re.sub(r" +", " ", out).strip()
+        return out
+
+
     def synthesize_fallback(self, query: str, retrieved: List[Dict]) -> str:
         """Offline fallback when Gemini is unavailable."""
         q_lower = query.lower().strip()
 
         if any(p in q_lower for p in ("who are you", "what are you", "your name", "who is sdboot")):
             return (
-                "I'm **sdboot**, a personal RAG assistant with knowledge about Muhammad Daniyal Azeem and Muhammad Sher Khan. "
-                "I know everything about Muhammad Daniyal Azeem — "
-                "his background, skills, projects, education, and how to reach him. "
-                "Ask me anything!"
+                "I'm **sdboot**, a personal RAG assistant. "
+                "I can answer questions about **Muhammad Daniyal Azeem** (AI & Flutter developer, Lahore) "
+                "and **Muhammad Sher Khan** (Matta, Swat). Ask me about either of them."
             )
         if any(q_lower.startswith(g) for g in ("hi", "hello", "hey", "salam")):
             return (
-                "Hey! I'm sdboot, here to tell you about Muhammad Daniyal Azeem. "
-                "He's an AI & Flutter developer based in Lahore. "
-                "What would you like to know?"
+                "Hey! I'm sdboot. I know about Muhammad Daniyal Azeem and Muhammad Sher Khan. "
+                "Who would you like to ask about?"
             )
         if not retrieved:
             return (
-                "I don't have enough information in Daniyal's knowledge base for that. "
-                "Try asking about his projects, skills, education or contact details."
+                "I don't have enough information for that. "
+                "Try asking about Daniyal (projects, skills, education, contact) or Sher Khan (background, education, hometown)."
             )
 
-        if any(w in q_lower for w in ("project", "clinic", "wallpaper", "lumina", "etl", "prediction", "what is")):
+        # Prefer project descriptions for project queries
+        if any(w in q_lower for w in ("project", "clinic", "wallpaper", "lumina", "etl", "prediction")):
             project_docs = [d for d in retrieved if d.get("category") == "project" or d.get("project_name")]
             if project_docs:
                 project_docs.sort(key=lambda d: (d["score"], len(d["text"])), reverse=True)
                 return project_docs[0]["text"]
 
+        # Get best answer text
+        answer = None
+        person = None
         for doc in retrieved:
             text = doc["text"]
+            person = doc.get("person")
             if text.startswith("Question:") and "Answer:" in text:
                 ans = text.split("Answer:", 1)[-1].strip()
-                if len(ans) > 40:
-                    return ans
+                if len(ans) > 20:
+                    answer = ans
+                    break
+            else:
+                answer = text
+                break
 
-        best = retrieved[0]["text"]
-        if best.startswith("Question:") and "Answer:" in best:
-            return best.split("Answer:", 1)[-1].strip()
-        return best
+        if not answer:
+            answer = retrieved[0]["text"]
+            if answer.startswith("Question:") and "Answer:" in answer:
+                answer = answer.split("Answer:", 1)[-1].strip()
+
+        # Always speak as sdboot in third person about the person
+        return self._to_third_person(answer, person=person)
+
 
     def generate(self, query: str, retrieved: List[Dict]) -> str:
         """LLM generation with proper prompt; falls back if needed."""
@@ -315,11 +372,17 @@ Rules:
 {f"RECENT CONVERSATION:{chr(10)}{history}{chr(10)}" if history else ""}
 USER QUESTION: {query}
 
-Answer as sdboot, using only the context above:"""
+Answer as sdboot (the assistant), in third person ABOUT the person, using only the context above. Never say "My name is" or "I was born" — say "His name is" / "He was born":"""
 
         if self.api_key:
             answer = call_gemini(self.SYSTEM_PROMPT, user_prompt, self.api_key)
             if answer:
+                # Safety: if model still answered in first person, rewrite
+                if re.match(r"^(My name is|I am |I'm |I was born)", answer.strip()):
+                    person = None
+                    if retrieved:
+                        person = retrieved[0].get("person")
+                    answer = self._to_third_person(answer, person=person)
                 return answer
 
         return self.synthesize_fallback(query, retrieved)
