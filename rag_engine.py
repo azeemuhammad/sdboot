@@ -240,6 +240,8 @@ STRICT RULES:
 - Speak as sdboot in third person (He is..., His name is...). Never say "I am Daniyal" or "My name is".
 - If asked about anyone else (Ali, Maaz, etc.) or anything missing from CONTEXT, say you do not have that information and that you only know Daniyal Azeem and Sher Khan.
 - Do NOT give Daniyal's full intro unless the user asked about Daniyal.
+- If the user does not say which person, ask: Daniyal or Sher Khan?
+- If a specific fact (e.g. current semester) is not in CONTEXT, say you don't have that fact — do not paste a full biography.
 - Keep answers short and on-topic (2-5 sentences).
 """
 
@@ -307,10 +309,31 @@ STRICT RULES:
 
 
 
+    def _person_mentioned(self, query: str) -> str | None:
+        """Return 'daniyal', 'sher', or None if unclear."""
+        q = query.lower()
+        if any(w in q for w in ("daniyal", "azeem", "clinic portal", "wallpaper app", "flutter app", "umt")):
+            return "daniyal"
+        if any(w in q for w in ("sher", "matta", "swat", "nawab ali", "mingora", "sambat")):
+            return "sher"
+        # "khan" alone is ambiguous (could be last name) — only if with sher-like context
+        if "sher khan" in q:
+            return "sher"
+        return None
+
     def _unknown_person_reply(self, query: str, retrieved: list):
-        """Reject questions about people/topics not in the knowledge base."""
+        """Handle unknown people, missing facts, and ambiguous questions."""
         q = query.lower().strip()
 
+        # Greetings handled elsewhere
+        if any(q.startswith(g) for g in ("hi", "hello", "hey", "salam")):
+            return None
+        if any(p in q for p in ("who are you", "what are you", "your name", "who is sdboot")):
+            return None
+
+        person = self._person_mentioned(query)
+
+        # Explicit "who is X" for unknown X
         m = re.search(
             r"(?:who\s+is|who's|tell\s+me\s+about|what\s+about)\s+([a-zA-Z][a-zA-Z\s\.]{0,40}?)\??\s*$",
             q,
@@ -326,17 +349,40 @@ STRICT RULES:
             name = m.group(1).strip()
             tokens = [t for t in re.split(r"[\s\.]+", name) if t]
             if tokens and not any(t in known_tokens for t in tokens):
-                if retrieved and retrieved[0].get("score", 0) >= 0.4:
-                    top = retrieved[0].get("text", "").lower()
-                    if any(t in top for t in tokens if len(t) > 2):
-                        return None
                 display = " ".join(w.capitalize() for w in tokens)
                 return (
                     f"I don't have any information about **{display}**. "
                     f"I only know about **Muhammad Daniyal Azeem** and **Muhammad Sher Khan**."
                 )
 
-        # Weak retrieval → no answer
+        # No person named in query → ask which one (do NOT default to Daniyal)
+        # Skip if query is clearly about projects/skills already tagged
+        vague = person is None
+        if vague and not any(w in q for w in ("clinic", "wallpaper", "lumina", "etl", "flutter", "firebase", "internship", "contact", "email", "whatsapp", "github")):
+            # Only ask when it looks like a personal fact question
+            if any(w in q for w in ("who", "what is", "where", "when", "age", "semester", "study", "school", "college", "father", "born", "live", "from", "name", "about")):
+                return (
+                    "Who are you asking about — **Muhammad Daniyal Azeem** or **Muhammad Sher Khan**? "
+                    "Please mention the name so I can answer correctly."
+                )
+
+        # Specific fact missing from knowledge (e.g. current semester) — do not dump bio
+        fact_keywords = ("semester", "cgpa", "gpa", "grade", "marks", "percentage", "roll number", "phone only")
+        if any(w in q for w in fact_keywords):
+            # Check if any retrieved text actually mentions that fact
+            blob = " ".join(d.get("text", "").lower() for d in (retrieved or []))
+            if not any(w in blob for w in fact_keywords if w in q):
+                who = "him"
+                if person == "daniyal":
+                    who = "Daniyal"
+                elif person == "sher":
+                    who = "Sher Khan"
+                return (
+                    f"I don't have that specific information about {who} in my knowledge base. "
+                    f"I can share profile, education, or contact details if you ask."
+                )
+
+        # Weak retrieval
         if not retrieved or retrieved[0].get("score", 0) < 0.12:
             return (
                 "I don't have that information in my knowledge base. "
